@@ -1,0 +1,733 @@
+/*
+
+  - Copy your game project code into this file
+  - for the p5.Sound library look here https://p5js.org/reference/#/libraries/p5.sound
+  - for finding cool sounds perhaps look here
+  https://freesound.org/
+
+
+  */
+
+var jumpSound;
+var teleportSound;
+var dropSound;
+var backgroundSound;
+
+var gameChar_x;
+var gameChar_y;
+var floorPos_y;
+var scrollPos;
+var gameChar_world_x;
+var isLeft;
+var isRight;
+var isFalling;
+var isPlummeting;
+var isGameOver;
+
+var clouds;
+var trees;
+var mountains;
+var collectables;
+var canyons;
+var game_score;
+var lives;
+var flagpole;
+
+function preload() {
+  soundFormats("mp3", "wav");
+
+  //load your sounds here
+  jumpSound = loadSound("assets/jump.wav");
+  jumpSound.setVolume(0.1);
+  teleportSound = loadSound("assets/teleport.wav");
+  teleportSound.setVolume(0.05);
+  dropSound = loadSound("assets/drop.wav");
+  dropSound.setVolume(0.1);
+  backgroundSound = loadSound("assets/background.mp3");
+  backgroundSound.setVolume(0.5);
+}
+
+function setup() {
+  createCanvas(1024, 576);
+  floorPos_y = (height * 3) / 4;
+  lives = 3;
+  // collectable1 = new Collectable(100, floorPos_y - 20, 30, color(0,255,0) )
+
+  // Initialise background sound
+  //  backgroundSound.play()
+  startGame();
+}
+
+function draw() {
+  background(100, 155, 255); // fill the sky blue
+  noStroke();
+  fill(0, 155, 0);
+  rect(0, floorPos_y, width, height / 4); // draw some green ground
+  push();
+  translate(scrollPos, 0);
+  // Draw clouds.
+  drawClouds();
+
+  // Draw mountains.
+  drawMountains();
+  // Draw trees.
+  drawTrees();
+  // Draw canyons.
+  for (var i = 0; i < canyons.length; i++) {
+    drawCanyon(canyons[i]);
+    checkCanyon(canyons[i]);
+  }
+
+  // Draw collectable items.
+  // for (var i = 0; i < collectables.length; i++) {
+  //   if (collectables[i].isFound == false) {
+  //     drawCollectable(collectables[i]);
+  //     checkCollectable(collectables[i]);
+  //   }
+  // drawCollectable();
+
+  // }
+
+  drawFlagpole();
+  pop();
+
+  // Logic to check flagpole reached
+  if (flagpole.isReached == false) {
+    checkFlagpole();
+  }
+
+  // Game score
+  fill(0);
+  textSize(15);
+  text("Score:" + game_score, 0, 15);
+  // Draw game character.
+
+  if (!isGameOver || teleportSound.isPlaying()) {
+    drawGameChar();
+  }
+
+  // Game over statement when game lives = 0.
+  if (lives < 1) {
+    fill(255, 0, 0);
+    textSize(28);
+    text("Game Over Press space to continue.", width / 4, height / 2);
+    isGameOver = true;
+    return;
+  }
+
+  // Shows level complete when u reach the flag
+  if (flagpole.isReached == true && !isGameOver) {
+    fill(0, 0, 255);
+    textSize(28);
+    text("Level complete. Press space to continue.", width / 4, height / 2);
+    isGameOver = true;
+    teleportSound.play();
+    return;
+  }
+
+  // Logic to make the game character move or the background scroll.
+  if (isLeft && isGameOver == false) {
+    if (gameChar_x > width * 0.2) {
+      gameChar_x -= 5;
+    } else {
+      scrollPos += 5;
+    }
+  }
+
+  if (isRight && isGameOver == false) {
+    if (gameChar_x < width * 0.8) {
+      gameChar_x += 5;
+    } else {
+      scrollPos -= 5; // negative for moving against the background
+    }
+  }
+
+  // Logic to make the game character rise and fall.
+  if (gameChar_y < floorPos_y && isGameOver == false) {
+    gameChar_y += 2;
+    isFalling = true;
+  } else {
+    isFalling = false;
+  }
+
+  // Update real position of gameChar for collision detection.
+  gameChar_world_x = gameChar_x - scrollPos;
+
+  // Logic to make player die
+  checkPlayerDie();
+
+  // Drawing Life
+  drawLife();
+}
+
+// ---------------------
+// Key control functions
+// ---------------------
+
+function keyPressed() {
+  // if statements to control the animation of the character when
+  // keys are pressed.
+  if (keyCode == 39 && isGameOver == false) {
+    isRight = true;
+  }
+
+  if (keyCode == 37 && isGameOver == false) {
+    isLeft = true;
+  }
+
+  if (keyCode == 32 && gameChar_y == floorPos_y && isGameOver == false) {
+    gameChar_y -= 100;
+    jumpSound.play();
+  }
+
+  //open up the console to see how these work
+  console.log("keyPressed: " + key);
+  console.log("keyPressed: " + keyCode);
+}
+
+function keyReleased() {
+  // if statements to control the animation of the character when
+  // keys are released.
+  if (keyCode == 39) {
+    isRight = false;
+  }
+
+  if (keyCode == 37) {
+    isLeft = false;
+  }
+
+  console.log("keyReleased: " + key);
+  console.log("keyReleased: " + keyCode);
+}
+
+// ------------------------------
+// Game character render function
+// ------------------------------
+
+// Function to draw the game character.
+
+function drawGameChar() {
+  // draw game character
+  if (isLeft && isFalling) {
+    // add your jumping-left code
+    fill(238, 232, 170);
+    beginShape();
+    vertex(gameChar_x - 9, gameChar_y - 50);
+    vertex(gameChar_x - 28, gameChar_y - 8);
+    vertex(gameChar_x - 3, gameChar_y - 8);
+    vertex(gameChar_x + 6, gameChar_y - 50);
+    endShape();
+    //UFO Body
+    fill(135, 206, 235);
+    arc(gameChar_x - 1, gameChar_y - 45, 45, 40, PI, 0);
+    fill(255, 215, 0);
+    arc(gameChar_x - 1, gameChar_y - 39, 45, 30, 0, PI);
+    fill(75, 0, 130);
+    ellipse(gameChar_x, gameChar_y - 46, 60, 20);
+    fill(112, 128, 144);
+    ellipse(gameChar_x, gameChar_y - 40, 80, 20);
+    fill(255, 255, 255);
+    ellipse(gameChar_x + 20, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x - 20, gameChar_y - 40, 10, 10);
+
+    //Add your code here ...
+
+    //UFO beam
+  } else if (isRight && isFalling) {
+    // add your jumping-right code
+
+    //Add your code here ...
+
+    //UFO beam
+    fill(238, 232, 170);
+    beginShape();
+    vertex(gameChar_x - 9, gameChar_y - 50);
+    vertex(gameChar_x, gameChar_y - 8);
+    vertex(gameChar_x + 25, gameChar_y - 8);
+    vertex(gameChar_x + 6, gameChar_y - 50);
+    endShape();
+
+    //UFO Body
+    fill(135, 206, 235);
+    arc(gameChar_x - 1, gameChar_y - 45, 45, 40, PI, 0);
+    fill(255, 215, 0);
+    arc(gameChar_x - 1, gameChar_y - 39, 45, 30, 0, PI);
+    fill(75, 0, 130);
+    ellipse(gameChar_x, gameChar_y - 46, 60, 20);
+    fill(112, 128, 144);
+    ellipse(gameChar_x, gameChar_y - 40, 80, 20);
+    fill(255, 255, 255);
+    ellipse(gameChar_x + 20, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x - 20, gameChar_y - 40, 10, 10);
+  } else if (isLeft) {
+    // add your walking left code
+    //Add your code here ...
+
+    //Add your code here ...
+    //UFO beam
+    fill(238, 232, 170);
+    beginShape();
+    vertex(gameChar_x - 9, gameChar_y - 35);
+    vertex(gameChar_x - 28, gameChar_y + 7);
+    vertex(gameChar_x - 3, gameChar_y + 7);
+    vertex(gameChar_x + 6, gameChar_y - 35);
+    endShape();
+    //UFO Body
+    fill(135, 206, 235);
+    arc(gameChar_x - 1, gameChar_y - 45, 45, 40, PI, 0);
+    fill(255, 215, 0);
+    arc(gameChar_x - 1, gameChar_y - 39, 45, 30, 0, PI);
+    fill(75, 0, 130);
+    ellipse(gameChar_x, gameChar_y - 46, 60, 20);
+    fill(112, 128, 144);
+    ellipse(gameChar_x, gameChar_y - 40, 80, 20);
+    fill(255, 255, 255);
+    ellipse(gameChar_x + 20, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x - 20, gameChar_y - 40, 10, 10);
+  } else if (isRight) {
+    // add your walking right code
+    //UFO beam
+    fill(238, 232, 170);
+    beginShape();
+    vertex(gameChar_x - 9, gameChar_y - 35);
+    vertex(gameChar_x, gameChar_y + 7);
+    vertex(gameChar_x + 25, gameChar_y + 7);
+    vertex(gameChar_x + 6, gameChar_y - 35);
+    endShape();
+
+    //UFO Body
+    fill(135, 206, 235);
+    arc(gameChar_x - 1, gameChar_y - 45, 45, 40, PI, 0);
+    fill(255, 215, 0);
+    arc(gameChar_x - 1, gameChar_y - 39, 45, 30, 0, PI);
+    fill(75, 0, 130);
+    ellipse(gameChar_x, gameChar_y - 46, 60, 20);
+    fill(112, 128, 144);
+    ellipse(gameChar_x, gameChar_y - 40, 80, 20);
+    fill(255, 255, 255);
+    ellipse(gameChar_x + 20, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x - 20, gameChar_y - 40, 10, 10);
+  } else if (isFalling || isPlummeting) {
+    // add your jumping facing forwards code
+    //Jumping facing forwards
+
+    //Add your code here ...
+    //UFO beam
+    fill(238, 232, 170);
+    beginShape();
+    vertex(gameChar_x - 9, gameChar_y - 50);
+    vertex(gameChar_x - 14, gameChar_y - 8);
+    vertex(gameChar_x + 11, gameChar_y - 8);
+    vertex(gameChar_x + 6, gameChar_y - 50);
+    endShape();
+    //UFO Body
+    fill(135, 206, 235);
+    arc(gameChar_x - 1, gameChar_y - 45, 45, 40, PI, 0);
+    fill(255, 215, 0);
+    arc(gameChar_x - 1, gameChar_y - 39, 45, 30, 0, PI);
+    fill(75, 0, 130);
+    ellipse(gameChar_x, gameChar_y - 46, 60, 20);
+    fill(112, 128, 144);
+    ellipse(gameChar_x, gameChar_y - 40, 80, 20);
+    fill(255, 255, 255);
+    ellipse(gameChar_x + 20, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x - 20, gameChar_y - 40, 10, 10);
+  } else {
+    // add your standing front facing code
+
+    //Add your code here ...
+    //UFO beam
+    fill(238, 232, 170);
+    beginShape();
+    vertex(gameChar_x - 9, gameChar_y - 35);
+    vertex(gameChar_x - 14, gameChar_y + 7);
+    vertex(gameChar_x + 11, gameChar_y + 7);
+    vertex(gameChar_x + 6, gameChar_y - 35);
+    endShape();
+
+    //UFO Body
+    fill(135, 206, 235);
+    arc(gameChar_x - 1, gameChar_y + -45, 45, 40, PI, 0);
+    fill(255, 215, 0);
+    arc(gameChar_x - 1, gameChar_y - 39, 45, 30, 0, PI);
+    fill(75, 0, 130);
+    ellipse(gameChar_x, gameChar_y - 46, 60, 20);
+    fill(112, 128, 144);
+    ellipse(gameChar_x, gameChar_y - 40, 80, 20);
+    fill(255, 255, 255);
+    ellipse(gameChar_x + 20, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x, gameChar_y - 40, 10, 10);
+    ellipse(gameChar_x - 20, gameChar_y - 40, 10, 10);
+  }
+}
+
+// ---------------------------
+// Background render functions
+// ---------------------------
+
+// ---------------------------------
+// Canyon render and check functions
+// ---------------------------------
+
+// Function to draw canyon objects.
+
+function drawCanyon(t_canyon) {
+  fill(0, 0, 0);
+  // anchored canyon
+  rect(t_canyon.x_Pos, t_canyon.y_Pos, t_canyon.width, 144);
+
+  fill(0, 0, 128);
+  ellipse(t_canyon.x_Pos + 50, t_canyon.y_Pos + 10, t_canyon.width, 50);
+  fill(0, 0, 139);
+  ellipse(t_canyon.x_Pos + 50, t_canyon.y_Pos + 10, t_canyon.width - 20, 40);
+  fill(0, 0, 205);
+  ellipse(t_canyon.x_Pos + 50, t_canyon.y_Pos + 10, t_canyon.width - 40, 30);
+  fill(0, 0, 255);
+  ellipse(t_canyon.x_Pos + 50, t_canyon.y_Pos + 10, t_canyon.width - 60, 20);
+}
+
+// Function to check character is over a canyon.
+
+function checkCanyon(t_canyon) {
+  if (
+    gameChar_world_x > t_canyon.x_Pos &&
+    gameChar_world_x < t_canyon.x_Pos + 100 &&
+    gameChar_y >= floorPos_y
+  ) {
+    dropSound.play();
+    gameChar_y += 2.5;
+    isPlummeting = true;
+    isLeft = false;
+    isRight = false;
+    return;
+  }
+}
+
+// ----------------------------------
+// Collectable items render and check functions
+
+function checkPlayerDie() {
+  if (gameChar_y > height && lives > 0) {
+    lives -= 1;
+    dropSound.stop();
+    startGame();
+  }
+}
+
+function drawLife() {
+  //Life Body
+  fill(255, 0, 0);
+  textSize(35);
+  text("Life:", 710, 35);
+
+  for (var i = 0; i < lives; i++) {
+    fill(135, 206, 235);
+    arc(
+      life[i].x_position,
+      life[i].y_position,
+      life[i].size,
+      life[i].size,
+      PI,
+      0
+    );
+    fill(255, 215, 0);
+    arc(
+      life[i].x_position,
+      life[i].y_position + 6,
+      life[i].size,
+      life[i].size,
+      0,
+      PI
+    );
+    fill(75, 0, 130);
+    ellipse(
+      life[i].x_position,
+      life[i].y_position - 1,
+      life[i].size + 10,
+      life[i].size - 15
+    );
+    fill(112, 128, 144);
+    ellipse(life[i].x_position, life[i].y_position + 5, 75, 20);
+    fill(255, 255, 255);
+    ellipse(
+      life[i].x_position + 20,
+      life[i].y_position + 5,
+      life[i].size - 25,
+      life[i].size - 25
+    );
+    ellipse(
+      life[i].x_position,
+      life[i].y_position + 5,
+      life[i].size - 25,
+      life[i].size - 25
+    );
+    ellipse(
+      life[i].x_position - 20,
+      life[i].y_position + 5,
+      life[i].size - 25,
+      life[i].size - 25
+    );
+  }
+}
+
+function drawFlagpole() {
+  if (flagpole.isReached == false) {
+    //portal base
+    fill(75, 0, 130);
+    beginShape();
+    vertex(flagpole.x_position - 100, flagpole.y_position_1);
+    vertex(flagpole.x_position + 100, flagpole.y_position_1);
+    vertex(flagpole.x_position + 50, flagpole.y_position_1 - 20);
+    vertex(flagpole.x_position - 50, flagpole.y_position_1 - 20);
+    vertex(flagpole.x_position - 100, flagpole.y_position_1);
+    endShape();
+
+    beginShape();
+    vertex(flagpole.x_position - 50, flagpole.y_position_1 - 150);
+    vertex(flagpole.x_position + 50, flagpole.y_position_1 - 150);
+    vertex(flagpole.x_position + 100, flagpole.y_position_1 - 170);
+    vertex(flagpole.x_position - 100, flagpole.y_position_1 - 170);
+    vertex(flagpole.x_position - 50, flagpole.y_position_1 - 150);
+    endShape();
+  } else {
+    //portal base
+    fill(75, 0, 130);
+    beginShape();
+    vertex(flagpole.x_position - 100, flagpole.y_position_1);
+    vertex(flagpole.x_position + 100, flagpole.y_position_1);
+    vertex(flagpole.x_position + 50, flagpole.y_position_1 - 20);
+    vertex(flagpole.x_position - 50, flagpole.y_position_1 - 20);
+    vertex(flagpole.x_position - 100, flagpole.y_position_1);
+    endShape();
+
+    beginShape();
+    vertex(flagpole.x_position - 50, flagpole.y_position_1 - 150);
+    vertex(flagpole.x_position + 50, flagpole.y_position_1 - 150);
+    vertex(flagpole.x_position + 100, flagpole.y_position_1 - 170);
+    vertex(flagpole.x_position - 100, flagpole.y_position_1 - 170);
+    vertex(flagpole.x_position - 50, flagpole.y_position_1 - 150);
+    endShape();
+    fill(70, 130, 180);
+    ellipse(flagpole.x_position, flagpole.y_position_2, 100, 20);
+    ellipse(flagpole.x_position, flagpole.y_position_3, 100, 20);
+    ellipse(flagpole.x_position, flagpole.y_position_4, 100, 20);
+    fill(192, 192, 192);
+    ellipse(flagpole.x_position, flagpole.y_position_2, 75, 10);
+    ellipse(flagpole.x_position, flagpole.y_position_3, 75, 10);
+    ellipse(flagpole.x_position, flagpole.y_position_4, 75, 10);
+
+    fill(238, 232, 170);
+    ellipse(flagpole.x_position, flagpole.y_position_5, 80, 20);
+    ellipse(flagpole.x_position, flagpole.y_position_6, 80, 20);
+
+    fill(192, 192, 192);
+    ellipse(flagpole.x_position, flagpole.y_position_5, 60, 10);
+    ellipse(flagpole.x_position, flagpole.y_position_6, 60, 10);
+
+    flagpole.y_position_2 += 5;
+    flagpole.y_position_3 += 5;
+    flagpole.y_position_4 += 5;
+    flagpole.y_position_5 += 4;
+    flagpole.y_position_6 += 4;
+
+    if (flagpole.y_position_2 > 420) {
+      flagpole.y_position_2 = 300;
+    }
+    if (flagpole.y_position_3 > 420) {
+      flagpole.y_position_3 = 300;
+    }
+    if (flagpole.y_position_4 > 420) {
+      flagpole.y_position_4 = 300;
+    }
+    if (flagpole.y_position_5 > 420) {
+      flagpole.y_position_5 = 300;
+    }
+    if (flagpole.y_position_6 > 420) {
+      flagpole.y_position_6 = 300;
+    }
+  }
+}
+
+function checkFlagpole() {
+  var d = abs(gameChar_world_x - flagpole.x_position);
+  if (d < 5) {
+    flagpole.isReached = true;
+  }
+}
+
+function isObjectOnCanyon(canyon_x, canyon_wt, object_x, object_size) {
+  var x1 = canyon_x - object_size;
+  var x2 = canyon_x + canyon_wt;
+
+  if (object_x > x1 && object_x < x2) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// function isObjectSideBySide(object1_x,object1_size,object2_x){
+//   if(object2_x < object1_x + object1_size && object2_x > object1_x){
+//     return true
+//   }
+//   else return false;
+// }
+function startGame() {
+  gameChar_x = width / 2;
+  gameChar_y = floorPos_y;
+
+  // Variable to control the background scrolling.
+  scrollPos = 0;
+
+  // Variable to store the real position of the gameChar in the game
+  // world. Needed for collision detection.
+  gameChar_world_x = gameChar_x - scrollPos;
+
+  // Boolean variables to control the movement of the game character.
+  isLeft = false;
+  isRight = false;
+  isFalling = false;
+  isPlummeting = false;
+
+  canyons = [];
+    for(var i = 0; i < 10; i++){
+      canyons.push(new Canyon(random(380,400) * i, floorPos_y, 100 ) )
+    }
+  // Initialise arrays of scenery objects.
+  trees = [];
+
+  for (var i = 0; i < 6; i++) {
+    var all_canyons_never_collide = false;
+    var trees_x = round(random(600,650)) * i
+    for (var j = 0; j < canyons.length; j++) {
+      if ( isObjectOnCanyon( canyons[j].x_Pos, canyons[j].width, trees_x, 150 )) {
+        i--;
+        all_canyons_never_collide = false;
+        break;
+      }
+      else {
+        all_canyons_never_collide = true;
+      }
+    }
+  if (all_canyons_never_collide) {
+    trees.push(new Tree(trees_x, floorPos_y));
+  }
+  }
+  // for (var i = 0; i < 5; i++) {
+  //   trees.push(new Tree(600 * i - 300, floorPos_y));
+  // }
+
+  clouds = [];
+  for (var i = 0; i < 20; i++) {
+    clouds.push(new Cloud(300 * i, random(25, 125), 75, random(50, 100)));
+  }
+
+  mountains = [];
+  for (var i = 0; i < 5; i++) {
+    mountains.push(new Mountain(600 * i, floorPos_y - 130, 175));
+  }
+
+  // canyons = [
+  //   { x_Pos: 100, y_Pos: floorPos_y, width: 100 },
+  //   { x_Pos: 750, y_Pos: floorPos_y, width: 100 },
+  //   { x_Pos: 1250, y_Pos: floorPos_y, width: 100 },
+  // ];
+
+  // canyons = [];
+  // for (var i = 0; i < 10; i++) {
+  //   var canyon_not_below_object = false;
+  //   var canyon_x = random(0, 3000);
+  //   for (var j = 0; j < mountains.length; j++) {
+  //     if (
+  //       spawnCanyon(canyon_x, 100, mountains[j].x, mountains[j].size, trees[j].x, 125, gameChar_x, 100)
+  //     ) {
+  //       i--;
+  //       canyon_not_below_object = false;
+  //       break;
+  //     } else {
+  //       canyon_not_below_object = true;
+  //     }
+  //   }
+  //   if (canyon_not_below_object) {
+  //     canyons.push(new Canyon(canyon_x, floorPos_y, 100));
+  //   }
+  // }
+
+    
+  // collectables = [];
+
+  // for (var i = 0; i < 10; i++) {
+  //   var c = color(random(0, 255), random(0, 255), random(0, 255));
+  //   var all_canyons_never_collide = false;
+  //   var collectable_x = random(0, 1500);
+  //   for (var j = 0; j < canyons.length; j++) {
+  //     if ( isObjectOnCanyon( canyons[j].x_Pos, canyons[j].width, collectable_x, 30 )) {
+  //       i--;
+  //       all_canyons_never_collide = false;
+  //       break;
+  //     }
+  //     else {
+  //       all_canyons_never_collide = true;
+  //     }
+  //   }
+  // if (all_canyons_never_collide) {
+  //   collectables.push(new Collectable(collectable_x, floorPos_y - 20, 30, c));
+  // }
+  // }
+
+  flagpole = {
+    x_position: 3000,
+    y_position_1: 440,
+    y_position_2: 270,
+    y_position_3: 320,
+    y_position_4: 370,
+    y_position_5: 330,
+    y_position_6: 380,
+    isReached: false,
+  };
+
+  game_score = 0;
+
+  isGameOver = false;
+  life = [
+    { x_position: 820, y_position: 20, size: 35 },
+    { x_position: 900, y_position: 20, size: 35 },
+    { x_position: 980, y_position: 20, size: 35 },
+  ];
+}
+
+// for(var i = 0; i < collectables.length;i++){
+//   for(var j = 0; j < collectables.length;j++){
+//     if(isObjectSideBySide(collectables[i].x_Pos,collectables[i].size,collectables[j].x_Pos)){
+//       console.log("in")
+//     }
+//   }
+// }
+
+// function spawnCanyon(
+//   canyon_x,
+//   canyon_width,
+//   object1_x,
+//   object1_size,
+//   object2_x,
+//   object2_size,
+//   object3_x,
+//   object3_size
+// ) {
+//   if (
+//     (canyon_x > object1_x &&
+//       canyon_x + canyon_width > object1_x + object1_size) ||
+//     (canyon_x > object2_x &&
+//       canyon_x + canyon_width > object2_x + object2_size) ||
+//     (canyon_x > object3_x && canyon_x + canyon_width > object3_x + object3_size)
+//   ) {
+//     return true;
+//   } else {
+//     return false;
+//   }
+// }
